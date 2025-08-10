@@ -1,0 +1,111 @@
+services:
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    restart: unless-stopped
+    container_name: anythingllm
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - ./.llm.env:/app/server/.env
+      - ./data/storage:/app/server/storage
+    networks:
+      llm:
+        ipv4_address: 172.21.0.5
+    ports:
+      - 0.0.0.0:3001:3001
+    environment:
+      UID: 1000
+      GID: 1000
+      DISABLE_TELEMETRY: true
+      STORAGE_DIR: /app/server/storage
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_PATH: http://172.21.0.4:11434
+      OLLAMA_MODEL_PREF: llama3.1:8b
+      OLLAMA_MODEL_TOKEN_LIMIT: 128000
+      OLLAMA_PERFORMANCE_MODE: maximum
+      OLLAMA_KEEP_ALIVE_TIMEOUT: 3600
+      # OLLAMA_AUTH_TOKEN: 'your-ollama-auth-token-here'
+
+  # Ollama for local LLMs
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    container_name: ollama
+    volumes:
+      - ./data/ollama:/root/.ollama
+    networks:
+      llm:
+        ipv4_address: 172.21.0.4
+    ports:
+      - 0.0.0.0:11434:11434
+
+  # caddy:
+  #   image: caddy:alpine
+  #   restart: always
+  #   container_name: llm-caddy
+  #   environment:
+  #     - NC_DOMAIN
+  #   volumes:
+  #     - type: bind
+  #       source: ./Caddyfile
+  #       target: /etc/caddy/Caddyfile
+  #     - type: volume
+  #       source: caddy_certs
+  #       target: /certs
+  #     - type: volume
+  #       source: caddy_data
+  #       target: /data
+  #     - type: volume
+  #       source: caddy_config
+  #       target: /config
+  #     - type: volume
+  #       source: tailscale_sock
+  #       target: /var/run/tailscale/ # Mount the volume for /var/run/tailscale/tailscale.sock
+  #       read_only: true
+  #   network_mode: service:tailscale
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   environment:
+  #     - TS_HOSTNAME
+  #     - TS_AUTH_KEY
+  #     - TS_EXTRA_ARGS
+  #   init: true
+  #   restart: always
+  #   container_name: llm-tailscale
+  #   volumes:
+  #     - /dev/net/tun:/dev/net/tun
+  #     - type: volume
+  #       source: tailscale
+  #       target: /var/lib/tailscale
+  #     - type: volume
+  #       source: tailscale_sock
+  #       target: /tmp
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - NET_RAW
+  #   networks:
+  #     - llm
+
+# volumes:
+#   caddy_certs:
+#     name: caddy_certs
+#   caddy_data:
+#     name: caddy_data
+#   caddy_config:
+#     name: caddy_config
+#   tailscale:
+#     name: tailscale
+#   tailscale_sock:
+#     name: tailscale_sock
+
+networks:
+  llm:
+    name: llm
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1" # Harden AIO
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
